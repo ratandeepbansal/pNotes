@@ -36,7 +36,8 @@ class KnowledgeGraphBuilder:
         all_notes = self.metadata_db.get_all_notes()
 
         # Add nodes
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
+            note_id = note_data.get('id', '')
             title = note_data.get('title', 'Untitled')
             tags = note_data.get('tags', '')
 

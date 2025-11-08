@@ -34,7 +34,7 @@ class UsageTracker:
         all_tags = []
         total_chars = 0
 
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
             # Tags
             tags = note_data.get('tags', '')
             if tags:
@@ -49,7 +49,7 @@ class UsageTracker:
         avg_note_length = total_chars / total_notes if total_notes > 0 else 0
 
         # Notes without tags (orphans)
-        orphans = sum(1 for _, data in all_notes if not data.get('tags'))
+        orphans = sum(1 for note in all_notes if not note.get('tags'))
 
         return {
             'total_notes': total_notes,
@@ -72,7 +72,7 @@ class UsageTracker:
         all_notes = self.metadata_db.get_all_notes()
         tag_counter = Counter()
 
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
             tags = note_data.get('tags', '')
             if tags:
                 tag_list = tags.split(',') if isinstance(tags, str) else tags
@@ -219,7 +219,7 @@ class UsageTracker:
         activity_grid = [[0 for _ in range(24)] for _ in range(7)]
         day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
             created = note_data.get('created_at')
             if created:
                 dt = datetime.fromtimestamp(created)
@@ -274,11 +274,11 @@ class UsageTracker:
         all_notes = self.metadata_db.get_all_notes()
 
         inactive = []
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
             modified = note_data.get('modified_at', 0)
             if modified < cutoff:
                 inactive.append({
-                    'id': note_id,
+                    'id': note_data.get('id', ''),
                     'title': note_data.get('title', 'Untitled'),
                     'modified_at': datetime.fromtimestamp(modified).strftime('%Y-%m-%d') if modified > 0 else 'Unknown',
                     'days_ago': int((datetime.now().timestamp() - modified) / 86400) if modified > 0 else None
@@ -304,15 +304,15 @@ class UsageTracker:
         # Sort by modified time
         sorted_notes = sorted(
             all_notes,
-            key=lambda x: x[1].get('modified_at', 0),
+            key=lambda x: x.get('modified_at', 0),
             reverse=True
         )[:top_k]
 
         active_notes = []
-        for note_id, note_data in sorted_notes:
+        for note_data in sorted_notes:
             modified = note_data.get('modified_at', 0)
             active_notes.append({
-                'id': note_id,
+                'id': note_data.get('id', ''),
                 'title': note_data.get('title', 'Untitled'),
                 'tags': note_data.get('tags', ''),
                 'modified_at': datetime.fromtimestamp(modified).strftime('%Y-%m-%d %H:%M') if modified > 0 else 'Unknown'

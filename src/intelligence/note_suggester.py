@@ -187,12 +187,12 @@ class NoteSuggester:
         all_notes = self.metadata_db.get_all_notes()
         orphans = []
 
-        for note_id, note_data in all_notes:
+        for note_data in all_notes:
             tags = note_data.get('tags', '')
             # Consider a note orphan if it has no tags
             if not tags or tags.strip() == '':
                 orphans.append({
-                    'id': note_id,
+                    'id': note_data.get('id', ''),
                     'title': note_data.get('title', 'Untitled'),
                     'path': note_data.get('path', '')
                 })
