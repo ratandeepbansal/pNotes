@@ -171,19 +171,31 @@ def main():
         )
 
         if api_key_input and api_key_input != st.session_state.get('user_api_key', ''):
-            st.session_state.user_api_key = api_key_input
             # Reinitialize SmartRAG with new key
             try:
                 st.session_state.smart_rag = SmartRAG(
                     api_key=api_key_input,
                     retriever=st.session_state.qa_system.retriever
                 )
+                st.session_state.user_api_key = api_key_input  # Only store if successful
                 st.session_state.openai_available = True
                 st.success("✓ API Key Updated!")
             except Exception as e:
                 st.session_state.smart_rag = None
                 st.session_state.openai_available = False
-                st.error(f"Error: {e}")
+                if 'user_api_key' in st.session_state:
+                    del st.session_state.user_api_key  # Clear invalid key
+                st.error(f"Error initializing OpenAI: {str(e)}")
+
+        # Clear API Key button
+        if st.session_state.get('user_api_key'):
+            if st.button("🗑️ Clear Stored API Key", help="Remove the currently stored API key"):
+                if 'user_api_key' in st.session_state:
+                    del st.session_state.user_api_key
+                st.session_state.smart_rag = None
+                st.session_state.openai_available = False
+                st.success("API key cleared. Please refresh the page.")
+                st.rerun()
 
         # OpenAI Settings
         if st.session_state.openai_available:
