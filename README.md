@@ -1,141 +1,315 @@
-# Personal RAG Notes App - Phase 1
+# 🧠 Personal RAG Notes App
 
-A local, privacy-focused personal knowledge base that uses RAG (Retrieval-Augmented Generation) to search and answer questions from your Markdown notes.
+Your AI-powered personal knowledge base that runs entirely offline. A private, intelligent note-taking and retrieval system built with Python, ChromaDB, and Streamlit.
 
-## Features (Phase 1)
+## ✨ Features
 
-- Read Markdown files with YAML frontmatter support
-- Extract metadata (title, tags) from notes
-- Store metadata in SQLite
-- Generate embeddings using SentenceTransformers
-- Store embeddings in ChromaDB for semantic search
-- Perform keyword and semantic search
-- Answer questions based on your notes (retrieval-based)
-- Fully local and offline - no API keys required
+### Core Functionality (Phase 1)
+- ✅ **Markdown Note Support** - Store notes in plain markdown with YAML frontmatter
+- ✅ **Semantic Search** - Find notes using natural language queries
+- ✅ **Vector Embeddings** - Powered by SentenceTransformers (all-MiniLM-L6-v2)
+- ✅ **Metadata Management** - SQLite database for fast metadata queries
+- ✅ **Question Answering** - Ask questions and get answers from your notes
+- ✅ **Topic Summarization** - Generate summaries on any topic from your notes
 
-## Installation
+### Streamlit UI (Phase 2)
+- ✅ **Web Interface** - Clean, modern UI built with Streamlit
+- ✅ **Interactive Search** - Real-time search with expandable results
+- ✅ **Statistics Dashboard** - Track your knowledge base metrics
+- ✅ **One-Click Reindexing** - Update your knowledge base instantly
 
-1. Activate your virtual environment:
+### Intelligence Layer (Phase 3)
+- ✅ **Context-Aware Search** - Filter by tags and date ranges
+- ✅ **Smart Analysis** - Discover connections and themes across notes
+- ✅ **Daily Reflections** - Generate insights about your note-taking patterns
+- ✅ **Connection Mapping** - Visualize relationships between notes
+
+### Sync & Backup (Phase 4)
+- ✅ **Backup & Restore** - Protect your knowledge base with automated backups
+- ✅ **Obsidian Integration** - Sync with your Obsidian vault
+- ✅ **Data Portability** - All data stored locally in open formats
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.9 or higher
+- Git
+
+### Installation
+
+1. **Clone the repository**
 ```bash
-source venv/bin/activate
+git clone https://github.com/ratandeepbansal/pNotes.git
+cd pNotes
 ```
 
-2. Install dependencies:
+2. **Create a virtual environment**
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+4. **Create your notes directory**
+```bash
+mkdir -p notes
+```
 
-### 1. Index Your Notes
+5. **Add your first note**
+Create a file `notes/example.md`:
+```markdown
+---
+title: My First Note
+tags: example, test
+---
 
-First, index all your markdown notes:
+# Hello World
 
+This is my first note in my personal knowledge base!
+```
+
+6. **Index your notes**
 ```bash
 python -m src.main index
 ```
 
-This will:
-- Scan all `.md` files in the `notes/` directory
-- Extract metadata and content
-- Generate embeddings
-- Store everything in SQLite and ChromaDB
-
-### 2. Search for Notes
-
-Perform semantic search:
-
+7. **Launch the app**
 ```bash
-python -m src.main search "robotics vision"
+./run_app.sh
+# Or manually: ./venv/bin/python3 -m streamlit run app.py
 ```
 
-Options:
-- `-k, --top-k`: Number of results to return (default: 5)
+Visit http://localhost:8501 to access your knowledge base!
 
-### 3. Ask Questions
+## 📖 Usage Guide
 
-Ask questions about your notes:
+### Adding Notes
 
-```bash
-python -m src.main ask "What have I written about AI?"
-```
-
-The system will retrieve relevant notes and provide an answer based on their content.
-
-### 4. Summarize Topics
-
-Get a summary of what your notes say about a topic:
-
-```bash
-python -m src.main summarize "machine learning"
-```
-
-### 5. View Statistics
-
-Check your knowledge base stats:
-
-```bash
-python -m src.main stats
-```
-
-## Project Structure
-
-```
-personal_rag/
-├── notes/                      # Your markdown notes
-│   ├── robotics.md
-│   ├── ai_thoughts.md
-│   └── ideas.md
-├── src/
-│   ├── main.py                 # CLI entrypoint
-│   ├── db/
-│   │   ├── metadata.py         # SQLite operations
-│   │   └── vectorstore.py      # ChromaDB operations
-│   ├── rag/
-│   │   ├── embedder.py         # Embedding generation
-│   │   ├── retriever.py        # Semantic search
-│   │   └── qa.py               # Question-answering
-│   └── utils/
-│       ├── file_loader.py      # Markdown file loading
-│       └── config.py           # Configuration
-├── data/                       # Generated (SQLite + ChromaDB)
-├── requirements.txt
-├── plan.md
-└── README.md
-```
-
-## Note Format
-
-Notes should be in Markdown format with optional YAML frontmatter:
+Notes are markdown files with optional YAML frontmatter:
 
 ```markdown
 ---
-title: My Note Title
-tags: tag1, tag2, tag3
+title: Understanding Machine Learning
+tags: AI, machine-learning, tutorial
 ---
 
-# Content goes here
+# Introduction to Machine Learning
 
-Your note content in Markdown format...
+Machine learning is a subset of artificial intelligence...
 ```
 
-If no frontmatter is provided, the filename will be used as the title.
+**Supported metadata:**
+- `title`: Note title (defaults to filename)
+- `tags`: Comma-separated tags or YAML list
 
-## What's Next?
+### Using the Web Interface
 
-This is Phase 1 of the project. Future phases will include:
+#### 🔍 Search Tab
+- Enter natural language queries
+- Apply tag and date filters in the sidebar
+- View results with relevance scores
+- Expand notes to read full content
 
-- **Phase 2**: Streamlit UI for better interaction
-- **Phase 3**: Local LLM integration for actual answer generation
-- **Phase 4**: PyApp packaging for desktop distribution
+#### 💬 Ask Question Tab
+- Ask questions about your notes
+- Get AI-generated answers with confidence scores
+- View source notes used for the answer
 
-## Technical Details
+#### 📝 Summarize Topic Tab
+- Enter a topic to summarize
+- Get organized summaries grouped by tags
+- See all related notes
 
-- **Embeddings**: Uses `all-MiniLM-L6-v2` for efficient, high-quality embeddings
-- **Vector Store**: ChromaDB for persistent vector storage
-- **Metadata**: SQLite for structured metadata
-- **Search**: Hybrid semantic + keyword search
+#### 🔗 Smart Analysis Tab
+- Discover connections between notes
+- View shared themes and tags
+- Identify knowledge clusters
 
-## License
+#### 📊 Reflections Tab
+- Generate daily, weekly, or custom reflections
+- Review your note-taking patterns
+- Track themes and productivity
 
-MIT
+### Command Line Interface
+
+The app also includes a CLI for power users:
+
+```bash
+# Index all notes
+python -m src.main index
+
+# Search notes
+python -m src.main search "machine learning"
+
+# Ask a question
+python -m src.main ask "What are my thoughts on AI?"
+
+# Summarize a topic
+python -m src.main summarize "productivity"
+
+# Show statistics
+python -m src.main stats
+```
+
+## 🔧 Advanced Features
+
+### Backup & Restore
+
+**Create a backup:**
+```bash
+python scripts/backup.py create
+```
+
+**List available backups:**
+```bash
+python scripts/backup.py list
+```
+
+**Restore from backup:**
+```bash
+python scripts/restore.py backups/knowledge_base_backup_YYYYMMDD_HHMMSS.tar.gz
+```
+
+### Obsidian Integration
+
+**One-time sync:**
+```bash
+python scripts/sync_obsidian.py /path/to/your/obsidian/vault
+```
+
+**Watch for changes (requires watchdog):**
+```bash
+pip install watchdog
+python scripts/sync_obsidian.py /path/to/your/obsidian/vault --watch
+```
+
+**Symlink mode (advanced):**
+```bash
+python scripts/sync_obsidian.py /path/to/your/obsidian/vault --mode symlink
+```
+
+### Filtering Search Results
+
+Use the sidebar filters to refine your searches:
+
+**Filter by tags:**
+- Select one or more tags from the dropdown
+- Only notes with matching tags will appear
+
+**Filter by date:**
+- Choose from presets (Today, Last 7 days, etc.)
+- Or set a custom date range
+- Only notes modified within the range will appear
+
+## 📁 Project Structure
+
+```
+personal_rag/
+├── notes/                    # Your markdown notes
+├── data/                     # Local databases (not in git)
+│   ├── metadata.db          # SQLite metadata
+│   └── chroma/              # ChromaDB vector store
+├── src/
+│   ├── db/
+│   │   ├── metadata.py      # SQLite operations
+│   │   └── vectorstore.py   # ChromaDB management
+│   ├── rag/
+│   │   ├── embedder.py      # Embedding generation
+│   │   ├── retriever.py     # Search & retrieval
+│   │   └── qa.py            # Question answering
+│   ├── utils/
+│   │   ├── file_loader.py   # Markdown parsing
+│   │   └── config.py        # Configuration
+│   └── main.py              # CLI entrypoint
+├── scripts/
+│   ├── backup.py            # Backup utility
+│   ├── restore.py           # Restore utility
+│   └── sync_obsidian.py     # Obsidian sync
+├── app.py                   # Streamlit UI
+├── run_app.sh              # Launch script
+└── requirements.txt         # Dependencies
+```
+
+## 🛠️ Configuration
+
+Edit `src/utils/config.py` to customize:
+
+```python
+# Paths
+NOTES_DIR = Path("./notes")
+DATA_DIR = Path("./data")
+
+# Search settings
+TOP_K_RESULTS = 5  # Default number of results
+
+# Model settings
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # SentenceTransformer model
+```
+
+## 🔒 Privacy & Data
+
+- **100% Offline**: No API keys required, no data sent to external services
+- **Local Storage**: All data stored on your machine
+- **Open Formats**: Notes in Markdown, metadata in SQLite
+- **Portable**: Easy to backup and migrate
+
+## 🐛 Troubleshooting
+
+**SQLite threading errors in Streamlit:**
+- Fixed in Phase 3 with `check_same_thread=False`
+- If you encounter issues, restart the Streamlit app
+
+**Notes not appearing:**
+- Make sure notes are in the `notes/` directory
+- Click "Reindex All Notes" in the sidebar
+- Check that files have `.md` extension
+
+**Search returns no results:**
+- Verify notes are indexed (check stats in sidebar)
+- Try different query terms
+- Remove filters to broaden search
+
+**Python module not found:**
+- Ensure virtual environment is activated
+- Run: `pip install -r requirements.txt`
+
+## 🤝 Contributing
+
+This is a personal project, but suggestions and improvements are welcome! Feel free to:
+- Open issues for bugs or feature requests
+- Submit pull requests
+- Share your use cases and customizations
+
+## 📝 License
+
+MIT License - feel free to use, modify, and distribute as you see fit.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [Streamlit](https://streamlit.io/) - Web interface
+- [ChromaDB](https://www.trychroma.com/) - Vector database
+- [SentenceTransformers](https://www.sbert.net/) - Embeddings
+- [SQLite](https://www.sqlite.org/) - Metadata storage
+
+## 🗺️ Roadmap
+
+- [x] Phase 1: Core RAG System
+- [x] Phase 2: Streamlit UI
+- [x] Phase 3: Intelligence Layer
+- [x] Phase 4: Backup & Sync
+- [ ] Future: Local LLM integration (Ollama/LM Studio)
+- [ ] Future: Knowledge graph visualization
+- [ ] Future: Plugin system
+
+## 📧 Contact
+
+Questions or feedback? Open an issue or reach out!
+
+---
+
+**🧠 Build your own AI memory system - private, powerful, and entirely yours.**
