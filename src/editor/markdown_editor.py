@@ -107,7 +107,7 @@ class MarkdownEditor:
         return {
             'metadata': metadata,
             'content': content,
-            'frontmatter': post.dumps()
+            'frontmatter': frontmatter.dumps(post)
         }
 
     def save_note(
@@ -226,7 +226,7 @@ class MarkdownEditor:
         # Save
         file_path = self.notes_dir / filename
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(post.dumps())
+            f.write(frontmatter.dumps(post))
 
         return file_path
 
