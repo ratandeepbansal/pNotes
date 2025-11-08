@@ -10,6 +10,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.rag.qa import QASystem
 from src.utils.config import TOP_K_RESULTS
+from src.editor.markdown_editor import MarkdownEditor
+from src.editor.file_manager import NoteManager
+from src.editor.templates import TemplateManager
 
 
 # Page configuration
@@ -33,6 +36,14 @@ def initialize_session_state():
         st.session_state.stats = None
     if 'all_tags' not in st.session_state:
         st.session_state.all_tags = []
+    if 'editor' not in st.session_state:
+        st.session_state.editor = MarkdownEditor()
+    if 'note_manager' not in st.session_state:
+        st.session_state.note_manager = NoteManager()
+    if 'template_manager' not in st.session_state:
+        st.session_state.template_manager = TemplateManager()
+    if 'current_note' not in st.session_state:
+        st.session_state.current_note = None
 
 
 def get_stats():
@@ -163,12 +174,13 @@ def main():
             end_timestamp = None
 
     # Main content area
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "🔍 Search",
         "💬 Ask Question",
         "📝 Summarize Topic",
         "🔗 Smart Analysis",
-        "📊 Reflections"
+        "📊 Reflections",
+        "✏️ Editor"
     ])
 
     # Tab 1: Semantic Search (Enhanced with filters)
@@ -455,13 +467,246 @@ def main():
                 except Exception as e:
                     st.error(f"Error generating reflection: {e}")
 
+    # Tab 6: Editor (Phase 5)
+    with tab6:
+        st.header("✏️ Note Editor")
+        st.markdown("Create and edit notes directly in the app")
+
+        # Editor mode selection
+        mode = st.radio(
+            "Mode:",
+            ["Create New Note", "Edit Existing Note", "Browse Notes"],
+            horizontal=True
+        )
+
+        if mode == "Create New Note":
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                # Note title
+                title = st.text_input("📝 Note Title", placeholder="Enter note title...")
+
+                # Template selector
+                templates = st.session_state.template_manager.list_templates()
+                template = st.selectbox(
+                    "Template",
+                    templates,
+                    index=0,
+                    help="Choose a template to start with"
+                )
+
+                # Load template content
+                template_content = st.session_state.template_manager.get_template(template)
+
+                # Content editor
+                content = st.text_area(
+                    "Content",
+                    value=template_content,
+                    height=400,
+                    help="Write your note in Markdown format"
+                )
+
+                # Preview toggle
+                show_preview = st.checkbox("Show Live Preview")
+
+                if show_preview:
+                    st.divider()
+                    st.subheader("Preview")
+                    st.markdown(content)
+
+            with col2:
+                # Metadata panel
+                st.subheader("Metadata")
+
+                # Tags input
+                tags_input = st.text_input(
+                    "Tags",
+                    placeholder="comma, separated, tags",
+                    help="Add tags separated by commas"
+                )
+                tags = [tag.strip() for tag in tags_input.split(',') if tag.strip()]
+
+                if tags:
+                    st.caption("Tags: " + ", ".join(f"`{tag}`" for tag in tags))
+
+                st.divider()
+
+                # Save button
+                if st.button("💾 Save Note", type="primary", use_container_width=True):
+                    if not title:
+                        st.error("Please enter a note title")
+                    else:
+                        try:
+                            file_path = st.session_state.editor.save_note(
+                                title=title,
+                                content=content,
+                                tags=tags,
+                                template=template if template != 'blank' else None
+                            )
+                            st.success(f"✓ Note saved: {file_path.name}")
+
+                            # Trigger reindex
+                            if st.checkbox("Reindex now?", value=True):
+                                with st.spinner("Reindexing..."):
+                                    st.session_state.qa_system.index_notes()
+                                st.success("✓ Knowledge base updated!")
+
+                        except Exception as e:
+                            st.error(f"Error saving note: {e}")
+
+                # Note stats
+                if content:
+                    st.divider()
+                    st.caption("📊 Stats")
+                    word_count = len(content.split())
+                    char_count = len(content)
+                    st.caption(f"Words: {word_count}")
+                    st.caption(f"Characters: {char_count}")
+
+        elif mode == "Edit Existing Note":
+            # List existing notes
+            notes = st.session_state.note_manager.list_notes()
+
+            if not notes:
+                st.info("No notes found. Create your first note!")
+            else:
+                # Note selector
+                note_options = {f"{note['filename']} ({note['modified'].strftime('%Y-%m-%d %H:%M')})": note['filename']
+                               for note in notes}
+
+                selected_display = st.selectbox(
+                    "Select a note to edit:",
+                    options=list(note_options.keys())
+                )
+                selected_file = note_options[selected_display]
+
+                # Load note
+                try:
+                    note = st.session_state.editor.load_note(selected_file)
+
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        # Editable title
+                        new_title = st.text_input("📝 Title", value=note['title'])
+
+                        # Editable content
+                        new_content = st.text_area(
+                            "Content",
+                            value=note['content'],
+                            height=400
+                        )
+
+                        # Preview
+                        if st.checkbox("Show Preview", key="edit_preview"):
+                            st.divider()
+                            st.subheader("Preview")
+                            st.markdown(new_content)
+
+                    with col2:
+                        st.subheader("Metadata")
+
+                        # Edit tags
+                        current_tags = note.get('tags', [])
+                        if isinstance(current_tags, str):
+                            current_tags = [tag.strip() for tag in current_tags.split(',')]
+
+                        tags_input = st.text_input(
+                            "Tags",
+                            value=", ".join(current_tags) if current_tags else "",
+                            key="edit_tags"
+                        )
+                        new_tags = [tag.strip() for tag in tags_input.split(',') if tag.strip()]
+
+                        st.divider()
+
+                        # Update button
+                        if st.button("💾 Update Note", type="primary", use_container_width=True):
+                            try:
+                                st.session_state.editor.update_note(
+                                    filename=selected_file,
+                                    title=new_title,
+                                    content=new_content,
+                                    tags=new_tags
+                                )
+                                st.success("✓ Note updated successfully!")
+
+                                # Reindex option
+                                if st.checkbox("Reindex now?", value=True, key="edit_reindex"):
+                                    with st.spinner("Reindexing..."):
+                                        st.session_state.qa_system.index_notes()
+                                    st.success("✓ Knowledge base updated!")
+
+                            except Exception as e:
+                                st.error(f"Error updating note: {e}")
+
+                        # Delete button
+                        st.divider()
+                        if st.button("🗑️ Delete Note", use_container_width=True):
+                            if st.checkbox("Confirm deletion", key="confirm_delete"):
+                                try:
+                                    st.session_state.editor.delete_note(selected_file)
+                                    st.success("✓ Note deleted!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error deleting note: {e}")
+
+                except Exception as e:
+                    st.error(f"Error loading note: {e}")
+
+        else:  # Browse Notes
+            st.subheader("📚 Note Library")
+
+            # Search and filter
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                search_query = st.text_input("🔍 Search notes", placeholder="Search by title or content...")
+            with col2:
+                sort_by = st.selectbox("Sort by", ["modified", "created", "title", "size"])
+
+            # Get notes
+            notes = st.session_state.note_manager.list_notes(sort_by=sort_by, search_term=search_query)
+
+            if not notes:
+                st.info("No notes found matching your search.")
+            else:
+                st.caption(f"Showing {len(notes)} note(s)")
+
+                # Display notes as cards
+                for note in notes:
+                    with st.expander(f"📄 {note['filename']} — {note['modified'].strftime('%Y-%m-%d %H:%M')}"):
+                        col1, col2 = st.columns([3, 1])
+
+                        with col1:
+                            st.caption(f"**Path:** `{note['path']}`")
+                            st.caption(f"**Size:** {note['size']:,} bytes")
+                            st.caption(f"**Created:** {note['created'].strftime('%Y-%m-%d %H:%M')}")
+
+                        with col2:
+                            if st.button("Edit", key=f"edit_{note['filename']}"):
+                                st.session_state.current_note = note['filename']
+                                st.rerun()
+
+                # Note statistics
+                st.divider()
+                stats = st.session_state.note_manager.get_note_stats()
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Notes", stats['total_notes'])
+                with col2:
+                    st.metric("Total Size", f"{stats['total_size_mb']:.2f} MB")
+                with col3:
+                    if stats['oldest_note']:
+                        st.metric("Oldest Note", stats['oldest_note'].strftime('%Y-%m-%d'))
+
     # Footer
     st.divider()
     st.markdown(
         """
         <div style='text-align: center; color: #666; padding: 20px;'>
-            <p>🧠 Personal RAG Notes App — Phase 3: Intelligence Layer Active</p>
-            <p style='font-size: 0.8em;'>Context-aware search • Smart analysis • Daily reflections</p>
+            <p>🧠 Personal RAG Notes App — Phase 5: Editor Integration Active</p>
+            <p style='font-size: 0.8em;'>Context-aware search • Smart analysis • Daily reflections • Built-in editor</p>
         </div>
         """,
         unsafe_allow_html=True
