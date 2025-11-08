@@ -19,6 +19,10 @@ from src.editor.markdown_editor import MarkdownEditor
 from src.editor.file_manager import NoteManager
 from src.editor.templates import TemplateManager
 from src.llm.openai_client import SmartRAG
+from src.intelligence.note_suggester import NoteSuggester
+from src.intelligence.summary_generator import SummaryGenerator
+from src.visualization.knowledge_graph import KnowledgeGraphBuilder
+from src.analytics.usage import UsageTracker
 
 
 # Page configuration
@@ -73,6 +77,18 @@ def initialize_session_state():
         st.session_state.use_openai_qa = False
     if 'use_auto_tagging' not in st.session_state:
         st.session_state.use_auto_tagging = False
+
+    # Initialize Phase 7 & 8 modules
+    if 'note_suggester' not in st.session_state:
+        st.session_state.note_suggester = NoteSuggester(
+            retriever=st.session_state.qa_system.retriever
+        )
+    if 'summary_generator' not in st.session_state:
+        st.session_state.summary_generator = SummaryGenerator()
+    if 'knowledge_graph' not in st.session_state:
+        st.session_state.knowledge_graph = KnowledgeGraphBuilder()
+    if 'usage_tracker' not in st.session_state:
+        st.session_state.usage_tracker = UsageTracker()
 
 
 def get_stats():
@@ -254,13 +270,15 @@ def main():
             end_timestamp = None
 
     # Main content area
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "🔍 Search",
         "💬 Ask Question",
         "📝 Summarize Topic",
         "🔗 Smart Analysis",
         "📊 Reflections",
-        "✏️ Editor"
+        "✏️ Editor",
+        "🕸️ Knowledge Graph",
+        "📈 Analytics"
     ])
 
     # Tab 1: Semantic Search (Enhanced with filters)
@@ -817,13 +835,143 @@ def main():
                     if stats['oldest_note']:
                         st.metric("Oldest Note", stats['oldest_note'].strftime('%Y-%m-%d'))
 
+    # Tab 7: Knowledge Graph (Phase 8)
+    with tab7:
+        st.header("🕸️ Knowledge Graph")
+        st.markdown("Visualize connections between your notes")
+
+        # Build graph
+        with st.spinner("Building knowledge graph..."):
+            try:
+                graph = st.session_state.knowledge_graph.build_graph(
+                    similarity_threshold=0.5
+                )
+
+                # Graph statistics
+                stats = st.session_state.knowledge_graph.get_graph_stats(graph)
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Notes", stats['total_nodes'])
+                with col2:
+                    st.metric("Connections", stats['total_edges'])
+                with col3:
+                    st.metric("Communities", stats['connected_components'])
+                with col4:
+                    st.metric("Isolated Notes", stats['isolated_nodes'])
+
+                st.divider()
+
+                # Central notes
+                st.subheader("📌 Most Connected Notes")
+                central = st.session_state.knowledge_graph.get_central_notes(graph, top_k=5)
+
+                if central:
+                    for note in central:
+                        with st.expander(f"**{note['title']}** ({note['connections']} connections)"):
+                            st.write(f"**Tags:** {', '.join(note['tags']) if note['tags'] else 'None'}")
+                            st.write(f"**Centrality Score:** {note['centrality_score']:.3f}")
+
+                st.divider()
+
+                # Visualization
+                st.subheader("Interactive Graph")
+
+                if stats['total_nodes'] > 0:
+                    # Create and save graph
+                    net = st.session_state.knowledge_graph.create_pyvis_graph(graph)
+                    html_path = "knowledge_graph.html"
+                    st.session_state.knowledge_graph.save_html(net, html_path)
+
+                    # Render in Streamlit
+                    st.session_state.knowledge_graph.render_in_streamlit(html_path)
+                else:
+                    st.info("No notes with tags found. Add tags to your notes to see connections!")
+
+            except Exception as e:
+                st.error(f"Error building graph: {e}")
+
+    # Tab 8: Analytics (Phase 8)
+    with tab8:
+        st.header("📈 Analytics Dashboard")
+        st.markdown("Insights and statistics about your note-taking habits")
+
+        # Overview Stats
+        overview = st.session_state.usage_tracker.get_overview_stats()
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("Total Notes", overview['total_notes'])
+        with col2:
+            st.metric("Unique Tags", overview['unique_tags'])
+        with col3:
+            st.metric("Avg Note Length", f"{overview['avg_note_length']} chars")
+        with col4:
+            st.metric("Total Words", f"~{overview['total_words']:,}")
+        with col5:
+            st.metric("Untagged Notes", overview['orphan_notes'])
+
+        st.divider()
+
+        # Charts
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Top Tags")
+            try:
+                tag_chart = st.session_state.usage_tracker.create_tag_chart(top_k=15)
+                st.plotly_chart(tag_chart, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error creating tag chart: {e}")
+
+        with col2:
+            st.subheader("Creation Timeline")
+            try:
+                timeline_chart = st.session_state.usage_tracker.create_timeline_chart(days=30)
+                st.plotly_chart(timeline_chart, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error creating timeline: {e}")
+
+        st.divider()
+
+        # Activity Heatmap
+        st.subheader("Activity Heatmap")
+        try:
+            heatmap = st.session_state.usage_tracker.create_activity_heatmap()
+            st.plotly_chart(heatmap, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating heatmap: {e}")
+
+        st.divider()
+
+        # Recent Activity
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Most Recently Modified")
+            active_notes = st.session_state.usage_tracker.get_most_active_notes(top_k=10)
+            if active_notes:
+                for note in active_notes:
+                    st.write(f"- **{note['title']}** ({note['modified_at']})")
+            else:
+                st.info("No notes found")
+
+        with col2:
+            st.subheader("Inactive Notes (90+ days)")
+            inactive_notes = st.session_state.usage_tracker.find_inactive_notes(days=90)
+            if inactive_notes[:10]:
+                for note in inactive_notes[:10]:
+                    st.write(f"- **{note['title']}** ({note['days_ago']} days ago)")
+            else:
+                st.info("All notes are recently active!")
+
     # Footer
     st.divider()
     st.markdown(
         """
         <div style='text-align: center; color: #666; padding: 20px;'>
-            <p>🧠 Personal RAG Notes App — Phase 5: Editor Integration Active</p>
-            <p style='font-size: 0.8em;'>Context-aware search • Smart analysis • Daily reflections • Built-in editor</p>
+            <p>🧠 Personal RAG Notes App — Phase 8: Complete Intelligence & Visualization</p>
+            <p style='font-size: 0.8em;'>OpenAI Integration • Smart Suggestions • Knowledge Graph • Analytics Dashboard</p>
         </div>
         """,
         unsafe_allow_html=True
