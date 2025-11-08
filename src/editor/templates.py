@@ -159,15 +159,16 @@ class TemplateManager:
         List all available templates.
 
         Returns:
-            List of template names
+            List of template names (deduplicated)
         """
-        templates = list(self.builtin_templates.keys())
+        # Use a set to avoid duplicates
+        templates = set(self.builtin_templates.keys())
 
-        # Add custom templates
+        # Add custom templates (will automatically skip duplicates)
         for template_file in self.templates_dir.glob('*.md'):
-            templates.append(template_file.stem)
+            templates.add(template_file.stem)
 
-        return sorted(templates)
+        return sorted(list(templates))
 
     def save_template(self, name: str, content: str) -> Path:
         """
