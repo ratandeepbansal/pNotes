@@ -44,12 +44,12 @@ class SummaryGenerator:
         end_of_day = datetime(date.year, date.month, date.day, 23, 59, 59).timestamp()
 
         # Get notes from that day
-        note_ids = self.metadata_db.search_by_date_range(
-            start_date=start_of_day,
-            end_date=end_of_day
+        notes = self.metadata_db.search_by_date_range(
+            start_timestamp=start_of_day,
+            end_timestamp=end_of_day
         )
 
-        if not note_ids:
+        if not notes:
             return {
                 'reflection': f"No notes found for {date.strftime('%Y-%m-%d')}",
                 'note_count': 0,
@@ -59,14 +59,12 @@ class SummaryGenerator:
 
         # Build context from notes
         notes_content = []
-        for note_id in note_ids:
-            note = self.metadata_db.get_note_by_id(note_id)
-            if note:
-                notes_content.append({
-                    'title': note.get('title', 'Untitled'),
-                    'content': note.get('content', '')[:500],  # Limit content length
-                    'tags': note.get('tags', '')
-                })
+        for note in notes:
+            notes_content.append({
+                'title': note.get('title', 'Untitled'),
+                'content': note.get('content', '')[:500],  # Limit content length
+                'tags': note.get('tags', '')
+            })
 
         context = "\n\n".join([
             f"**{n['title']}**\n{n['content']}\nTags: {n['tags']}"
@@ -130,12 +128,12 @@ class SummaryGenerator:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
 
-        note_ids = self.metadata_db.search_by_date_range(
-            start_date=start_date.timestamp(),
-            end_date=end_date.timestamp()
+        notes = self.metadata_db.search_by_date_range(
+            start_timestamp=start_date.timestamp(),
+            end_timestamp=end_date.timestamp()
         )
 
-        if not note_ids:
+        if not notes:
             return {
                 'summary': 'No notes found in the past week',
                 'note_count': 0,
@@ -145,10 +143,8 @@ class SummaryGenerator:
 
         # Build context
         notes_content = []
-        for note_id in note_ids[:20]:  # Limit to 20 notes
-            note = self.metadata_db.get_note_by_id(note_id)
-            if note:
-                notes_content.append({
+        for note in notes[:20]:  # Limit to 20 notes
+            notes_content.append({
                     'title': note.get('title', 'Untitled'),
                     'content': note.get('content', '')[:300],
                     'tags': note.get('tags', ''),

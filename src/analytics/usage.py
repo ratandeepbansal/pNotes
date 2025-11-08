@@ -99,13 +99,12 @@ class UsageTracker:
             Dictionary with timeline data
         """
         cutoff = (datetime.now() - timedelta(days=days)).timestamp()
-        recent_notes = self.metadata_db.search_by_date_range(start_date=cutoff)
+        recent_notes = self.metadata_db.search_by_date_range(start_timestamp=cutoff)
 
         # Count notes per day
         day_counts = {}
-        for note_id in recent_notes:
-            note = self.metadata_db.get_note_by_id(note_id)
-            if note and note.get('created_at'):
+        for note in recent_notes:
+            if note.get('created_at'):
                 date_str = datetime.fromtimestamp(note['created_at']).strftime('%Y-%m-%d')
                 day_counts[date_str] = day_counts.get(date_str, 0) + 1
 

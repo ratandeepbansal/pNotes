@@ -113,7 +113,7 @@ class NoteSuggester:
         """
         # Get recent notes
         cutoff = (datetime.now() - timedelta(days=days)).timestamp()
-        recent_notes = self.metadata_db.search_by_date_range(start_date=cutoff)
+        recent_notes = self.metadata_db.search_by_date_range(start_timestamp=cutoff)
 
         if not recent_notes:
             return {
@@ -124,14 +124,12 @@ class NoteSuggester:
 
         # Get note details
         notes_content = []
-        for note_id in recent_notes[:10]:  # Limit to 10 most recent
-            note = self.metadata_db.get_note_by_id(note_id)
-            if note:
-                notes_content.append({
-                    'title': note.get('title', 'Untitled'),
-                    'tags': note.get('tags', ''),
-                    'content_preview': note.get('content', '')[:200]
-                })
+        for note in recent_notes[:10]:  # Limit to 10 most recent
+            notes_content.append({
+                'title': note.get('title', 'Untitled'),
+                'tags': note.get('tags', ''),
+                'content_preview': note.get('content', '')[:200]
+            })
 
         # Build context string
         context = "\n\n".join([
@@ -211,13 +209,12 @@ class NoteSuggester:
             List of trending topics with counts
         """
         cutoff = (datetime.now() - timedelta(days=days)).timestamp()
-        recent_notes = self.metadata_db.search_by_date_range(start_date=cutoff)
+        recent_notes = self.metadata_db.search_by_date_range(start_timestamp=cutoff)
 
         # Collect all tags
         tag_counts = {}
-        for note_id in recent_notes:
-            note = self.metadata_db.get_note_by_id(note_id)
-            if note and note.get('tags'):
+        for note in recent_notes:
+            if note.get('tags'):
                 tags = note['tags']
                 tag_list = tags.split(',') if isinstance(tags, str) else tags
                 for tag in tag_list:
