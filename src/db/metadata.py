@@ -21,7 +21,8 @@ class MetadataDB:
 
     def _init_db(self):
         """Create the database and tables if they don't exist."""
-        self.conn = sqlite3.connect(str(self.db_path))
+        # check_same_thread=False allows SQLite to work with Streamlit's threading
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row  # Enable dict-like access
 
         cursor = self.conn.cursor()
@@ -108,6 +109,113 @@ class MetadataDB:
         rows = cursor.fetchall()
 
         return [dict(row) for row in rows]
+
+    def search_by_date_range(self, start_timestamp: Optional[float] = None,
+                            end_timestamp: Optional[float] = None) -> List[Dict]:
+        """
+        Search notes by date range.
+
+        Args:
+            start_timestamp: Start of date range (Unix timestamp)
+            end_timestamp: End of date range (Unix timestamp)
+
+        Returns:
+            List of notes within the date range
+        """
+        cursor = self.conn.cursor()
+
+        if start_timestamp and end_timestamp:
+            cursor.execute("""
+                SELECT * FROM notes
+                WHERE modified_at >= ? AND modified_at <= ?
+                ORDER BY modified_at DESC
+            """, (start_timestamp, end_timestamp))
+        elif start_timestamp:
+            cursor.execute("""
+                SELECT * FROM notes
+                WHERE modified_at >= ?
+                ORDER BY modified_at DESC
+            """, (start_timestamp,))
+        elif end_timestamp:
+            cursor.execute("""
+                SELECT * FROM notes
+                WHERE modified_at <= ?
+                ORDER BY modified_at DESC
+            """, (end_timestamp,))
+        else:
+            return self.get_all_notes()
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_all_tags(self) -> List[str]:
+        """
+        Get all unique tags from all notes.
+
+        Returns:
+            List of unique tags
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT DISTINCT tags FROM notes WHERE tags IS NOT NULL AND tags != ''")
+        rows = cursor.fetchall()
+
+        # Parse comma-separated tags
+        all_tags = set()
+        for row in rows:
+            tags = row['tags']
+            if tags:
+                # Split by comma and clean up whitespace
+                tag_list = [tag.strip() for tag in tags.split(',')]
+                all_tags.update(tag_list)
+
+        return sorted(list(all_tags))
+
+    def filter_notes(self, tags: Optional[List[str]] = None,
+                    start_date: Optional[float] = None,
+                    end_date: Optional[float] = None) -> List[str]:
+        """
+        Filter notes by tags and/or date range. Returns note IDs.
+
+        Args:
+            tags: List of tags to filter by (OR logic)
+            start_date: Start timestamp
+            end_date: End timestamp
+
+        Returns:
+            List of note IDs matching the filters
+        """
+        cursor = self.conn.cursor()
+
+        conditions = []
+        params = []
+
+        # Build tag conditions
+        if tags and len(tags) > 0:
+            tag_conditions = []
+            for tag in tags:
+                tag_conditions.append("tags LIKE ?")
+                params.append(f"%{tag}%")
+            conditions.append(f"({' OR '.join(tag_conditions)})")
+
+        # Build date conditions
+        if start_date:
+            conditions.append("modified_at >= ?")
+            params.append(start_date)
+
+        if end_date:
+            conditions.append("modified_at <= ?")
+            params.append(end_date)
+
+        # Build query
+        if conditions:
+            where_clause = " AND ".join(conditions)
+            query = f"SELECT id FROM notes WHERE {where_clause}"
+            cursor.execute(query, params)
+        else:
+            cursor.execute("SELECT id FROM notes")
+
+        rows = cursor.fetchall()
+        return [row['id'] for row in rows]
 
     def delete_note(self, note_id: str) -> bool:
         """Delete a note by its ID."""

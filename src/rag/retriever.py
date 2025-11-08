@@ -63,29 +63,54 @@ class Retriever:
         print(f"Successfully indexed {len(notes)} notes.")
         return len(notes)
 
-    def search_semantic(self, query: str, top_k: int = TOP_K_RESULTS) -> List[Dict]:
+    def search_semantic(self, query: str, top_k: int = TOP_K_RESULTS,
+                       filter_tags: Optional[List[str]] = None,
+                       start_date: Optional[float] = None,
+                       end_date: Optional[float] = None) -> List[Dict]:
         """
-        Perform semantic search for relevant notes.
+        Perform semantic search for relevant notes with optional filtering.
 
         Args:
             query: The search query
             top_k: Number of top results to return
+            filter_tags: Optional list of tags to filter by
+            start_date: Optional start timestamp for date filtering
+            end_date: Optional end timestamp for date filtering
 
         Returns:
             List of dictionaries containing note information and relevance scores
         """
+        # Get filtered note IDs if filters are applied
+        filtered_ids = None
+        if filter_tags or start_date or end_date:
+            filtered_ids = self.metadata_db.filter_notes(
+                tags=filter_tags,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            # If no notes match the filters, return empty results
+            if not filtered_ids:
+                return []
+
         # Generate query embedding
         query_embedding = self.embedder.embed_query(query)
 
-        # Search vector store
+        # Search vector store with higher limit if filtering
+        search_limit = top_k * 3 if filtered_ids else top_k
+
         results = self.vector_store.query_single(
             query_embedding=query_embedding,
-            n_results=top_k
+            n_results=search_limit
         )
 
-        # Format results
+        # Format and filter results
         formatted_results = []
         for i, doc_id in enumerate(results['ids']):
+            # Skip if not in filtered set
+            if filtered_ids and doc_id not in filtered_ids:
+                continue
+
             # Get full metadata from SQLite
             note_metadata = self.metadata_db.get_note_by_id(doc_id)
 
@@ -99,7 +124,16 @@ class Retriever:
                 'relevance_score': 1 - results['distances'][i]  # Convert distance to similarity
             }
 
+            # Add date info if available
+            if note_metadata:
+                result['created_at'] = note_metadata.get('created_at')
+                result['modified_at'] = note_metadata.get('modified_at')
+
             formatted_results.append(result)
+
+            # Stop when we have enough results
+            if len(formatted_results) >= top_k:
+                break
 
         return formatted_results
 
@@ -184,6 +218,15 @@ class Retriever:
             'total_notes': self.vector_store.count(),
             'notes_in_db': len(self.metadata_db.get_all_notes())
         }
+
+    def get_all_tags(self) -> List[str]:
+        """
+        Get all unique tags from the knowledge base.
+
+        Returns:
+            List of unique tags
+        """
+        return self.metadata_db.get_all_tags()
 
     def close(self):
         """Close database connections."""
