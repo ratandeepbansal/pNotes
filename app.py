@@ -4,6 +4,11 @@ from pathlib import Path
 import sys
 from datetime import datetime, timedelta
 import time
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -13,6 +18,7 @@ from src.utils.config import TOP_K_RESULTS
 from src.editor.markdown_editor import MarkdownEditor
 from src.editor.file_manager import NoteManager
 from src.editor.templates import TemplateManager
+from src.llm.openai_client import SmartRAG
 
 
 # Page configuration
@@ -44,6 +50,29 @@ def initialize_session_state():
         st.session_state.template_manager = TemplateManager()
     if 'current_note' not in st.session_state:
         st.session_state.current_note = None
+
+    # Initialize SmartRAG if API key is available
+    if 'smart_rag' not in st.session_state:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if api_key:
+            try:
+                st.session_state.smart_rag = SmartRAG(
+                    api_key=api_key,
+                    retriever=st.session_state.qa_system.retriever
+                )
+                st.session_state.openai_available = True
+            except Exception as e:
+                st.session_state.smart_rag = None
+                st.session_state.openai_available = False
+        else:
+            st.session_state.smart_rag = None
+            st.session_state.openai_available = False
+
+    # OpenAI feature toggles
+    if 'use_openai_qa' not in st.session_state:
+        st.session_state.use_openai_qa = False
+    if 'use_auto_tagging' not in st.session_state:
+        st.session_state.use_auto_tagging = False
 
 
 def get_stats():
@@ -111,6 +140,57 @@ def main():
                     st.error(f"Error indexing notes: {e}")
 
         st.info("Click 'Reindex' to update the knowledge base with new or modified notes.")
+
+        st.divider()
+
+        # OpenAI API Key Configuration
+        st.subheader("🤖 OpenAI Configuration")
+
+        api_key_input = st.text_input(
+            "OpenAI API Key",
+            type="password",
+            value=st.session_state.get('user_api_key', ''),
+            placeholder="sk-...",
+            help="Enter your OpenAI API key to enable AI features"
+        )
+
+        if api_key_input and api_key_input != st.session_state.get('user_api_key', ''):
+            st.session_state.user_api_key = api_key_input
+            # Reinitialize SmartRAG with new key
+            try:
+                st.session_state.smart_rag = SmartRAG(
+                    api_key=api_key_input,
+                    retriever=st.session_state.qa_system.retriever
+                )
+                st.session_state.openai_available = True
+                st.success("✓ API Key Updated!")
+            except Exception as e:
+                st.session_state.smart_rag = None
+                st.session_state.openai_available = False
+                st.error(f"Error: {e}")
+
+        # OpenAI Settings
+        if st.session_state.openai_available:
+            st.success("✓ OpenAI Connected")
+
+            st.session_state.use_openai_qa = st.checkbox(
+                "Use OpenAI for Q&A",
+                value=st.session_state.use_openai_qa,
+                help="Enable AI-powered question answering"
+            )
+
+            st.session_state.use_auto_tagging = st.checkbox(
+                "Auto-generate tags",
+                value=st.session_state.use_auto_tagging,
+                help="Automatically suggest tags when creating notes"
+            )
+
+            # Cost tracking
+            if st.session_state.smart_rag:
+                cost_stats = st.session_state.smart_rag.get_cost_stats()
+                st.caption(f"**API Usage:** {cost_stats['total_tokens']} tokens (${cost_stats['estimated_cost_usd']:.4f})")
+        else:
+            st.info("💡 Enter your OpenAI API key above to enable AI features")
 
         st.divider()
 
@@ -289,10 +369,18 @@ def main():
         if ask_button and question:
             with st.spinner("Thinking..."):
                 try:
-                    result = st.session_state.qa_system.answer_question(
-                        question,
-                        top_k=top_k
-                    )
+                    # Use OpenAI if enabled and available
+                    if st.session_state.use_openai_qa and st.session_state.smart_rag:
+                        result = st.session_state.smart_rag.answer_question(
+                            question,
+                            top_k=top_k,
+                            mode="hybrid"
+                        )
+                    else:
+                        result = st.session_state.qa_system.answer_question(
+                            question,
+                            top_k=top_k
+                        )
                     st.session_state.qa_result = result
                 except Exception as e:
                     st.error(f"Error answering question: {e}")
@@ -305,9 +393,21 @@ def main():
             st.subheader("Answer")
             st.markdown(result['answer'])
 
-            # Confidence
-            confidence = result.get('confidence', 0.0)
-            st.metric("Confidence", f"{confidence:.1%}")
+            # Display metadata based on source
+            col1, col2 = st.columns(2)
+            with col1:
+                # Confidence (traditional QA)
+                if 'confidence' in result:
+                    confidence = result.get('confidence', 0.0)
+                    st.metric("Confidence", f"{confidence:.1%}")
+
+            with col2:
+                # Context used (OpenAI)
+                if 'context_used' in result:
+                    st.metric("Notes Retrieved", result['context_used'])
+                # Enhanced query (OpenAI)
+                if 'enhanced_query' in result:
+                    st.caption(f"**Enhanced query:** {result['enhanced_query']}")
 
             # Sources
             sources = result.get('sources', [])
@@ -316,10 +416,13 @@ def main():
                 st.subheader(f"📚 Sources ({len(sources)} note(s))")
 
                 for i, source in enumerate(sources, 1):
+                    # Handle both old and new source formats
+                    relevance = source.get('relevance_score') or source.get('score', 0)
                     with st.expander(
-                        f"{i}. {source.get('title', 'Untitled')} — Relevance: {source.get('relevance_score', 0):.3f}"
+                        f"{i}. {source.get('title', 'Untitled')} — Relevance: {relevance:.3f}"
                     ):
-                        st.markdown(f"**Path:** `{source.get('path', 'N/A')}`")
+                        if 'path' in source:
+                            st.markdown(f"**Path:** `{source.get('path', 'N/A')}`")
                         tags = source.get('tags', '')
                         if tags:
                             st.markdown(f"**Tags:** {tags}")
@@ -518,9 +621,23 @@ def main():
                 # Metadata panel
                 st.subheader("Metadata")
 
+                # Auto-tag button (if OpenAI enabled)
+                if st.session_state.use_auto_tagging and st.session_state.smart_rag and content:
+                    if st.button("🤖 Auto-Generate Tags", use_container_width=True):
+                        with st.spinner("Generating tags..."):
+                            try:
+                                suggested_tags = st.session_state.smart_rag.auto_tag(content)
+                                # Store in session state
+                                st.session_state.suggested_tags = suggested_tags
+                                st.success(f"✓ Generated {len(suggested_tags)} tags")
+                            except Exception as e:
+                                st.error(f"Error generating tags: {e}")
+
                 # Tags input
+                default_tags = ', '.join(st.session_state.get('suggested_tags', []))
                 tags_input = st.text_input(
                     "Tags",
+                    value=default_tags,
                     placeholder="comma, separated, tags",
                     help="Add tags separated by commas"
                 )
